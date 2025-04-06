@@ -41,7 +41,10 @@ app.use(cors(corsOptions));
 //Middleware
 
 app.use(bodyParser.json());
-
+// Thêm vào file app.js
+app.get('/', (req, res) => {
+  res.send('API đang hoạt động! Sử dụng /api/... để truy cập các endpoints.');
+});
 //routes
 app.use("/api/auth", authRoute);
 app.use("/api/admin", adminRoute);
