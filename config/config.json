@@ -14,7 +14,10 @@
     "dialect": "mysql"
   },
   "production": {
-    "use_env_variable": "DATABASE_URL",
+    "username": "DB_HOST",
+    "password": "DB_PASSWORD",
+    "database": "DB_NAME",
+    "host": "DB_HOST",
     "dialect": "mysql"
   }
 }
