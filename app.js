@@ -72,20 +72,20 @@ app.use((err, req, res, next) => {
 });
 
 //Sync database and start server
-db.sequelize
-  .sync()
-  .then(() => {
-    console.log("Database synced successfully.");
-    app.listen(PORT, () => {
-      console.log(`Server running on https://diemdanhserver.vercel.app${PORT}`);
+// db.sequelize
+//   .sync()
+//   .then(() => {
+//     console.log("Database synced successfully.");
+//     app.listen(PORT, () => {
+//       console.log(`Server running on https://diemdanhserver.vercel.app${PORT}`);
       
-    });
-  })
-  .catch((err) => {
-    console.error("Unable to sync database:", err);
-    process.exit(1); // Thoát nếu không kết nối được DB
-  });
-console.log("Attempting to connect to the database...");
+//     });
+//   })
+//   .catch((err) => {
+//     console.error("Unable to sync database:", err);
+//     process.exit(1); // Thoát nếu không kết nối được DB
+//   });
+// console.log("Attempting to connect to the database...");
 db.sequelize.authenticate() // Chỉ kiểm tra kết nối, không thay đổi schema
   .then(() => {
     console.log('Database connection has been established successfully.');
