@@ -69,31 +69,31 @@ app.use((err, req, res, next) => {
 });
 
 //Sync database and start server
-db.sequelize
-  .sync()
-  .then(() => {
-    console.log("Database synced successfully.");
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      
-    });
-  })
-  .catch((err) => {
-    console.error("Unable to sync database:", err);
-    process.exit(1); // Thoát nếu không kết nối được DB
-  });
-console.log("Attempting to connect to the database...");
-// db.sequelize.authenticate() // Chỉ kiểm tra kết nối, không thay đổi schema
+// db.sequelize
+//   .sync()
 //   .then(() => {
-//     console.log('Database connection has been established successfully.');
+//     console.log("Database synced successfully.");
 //     app.listen(PORT, () => {
-//       console.log(`Server running on port ${PORT}`);
-//       console.log(`Accepting requests from: ${allowedOrigins.join(', ')}`); // Log lại cấu hình CORS
-//       // Log các routes nếu cần
-//       // console.log('Available routes: ...');
+//       console.log(`Server running on http://localhost:${PORT}`);
+      
 //     });
 //   })
-//   .catch(err => {
-//     console.error('!!! Unable to connect to the database:', err);
+//   .catch((err) => {
+//     console.error("Unable to sync database:", err);
 //     process.exit(1); // Thoát nếu không kết nối được DB
 //   });
+// console.log("Attempting to connect to the database...");
+db.sequelize.authenticate() // Chỉ kiểm tra kết nối, không thay đổi schema
+  .then(() => {
+    console.log('Database connection has been established successfully.');
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Accepting requests from: ${allowedOrigins.join(', ')}`); // Log lại cấu hình CORS
+      // Log các routes nếu cần
+      // console.log('Available routes: ...');
+    });
+  })
+  .catch(err => {
+    console.error('!!! Unable to connect to the database:', err);
+    process.exit(1); // Thoát nếu không kết nối được DB
+  });
