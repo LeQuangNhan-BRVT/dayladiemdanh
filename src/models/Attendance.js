@@ -11,7 +11,7 @@ module.exports = (sequelize, DataTypes) => {
         },
         // createdAt và updatedAt được tự động quản lý
     }, {
-        tableName: 'Attendances',
+        tableName: 'attendances',
         timestamps: true
     });
 

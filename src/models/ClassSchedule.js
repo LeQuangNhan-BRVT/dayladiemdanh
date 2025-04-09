@@ -59,7 +59,7 @@ module.exports = (sequelize, DataTypes) => {
       // isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
     },
     {
-      tableName: "ClassSchedules",
+      tableName: "classschedules",
       timestamps: true, // Thêm createdAt, updatedAt
     }
   );

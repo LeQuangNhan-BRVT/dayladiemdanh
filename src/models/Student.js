@@ -48,7 +48,7 @@ module.exports = (sequelize, DataTypes) => {
             onUpdate: 'CASCADE',
         }
     }, {
-        tableName: 'Students',
+        tableName: 'students',
         timestamps: true
     });
 
@@ -68,7 +68,7 @@ module.exports = (sequelize, DataTypes) => {
 
         // Một Student thuộc về nhiều Class (quan hệ N-N)
         Student.belongsToMany(models.Class, {
-            through: 'ClassStudent',
+            through: 'classstudent',
             foreignKey: 'studentId',
             otherKey: 'classId',
             as: 'classes' // Định nghĩa alias
