@@ -8,20 +8,30 @@ const { protect, restrictTo } = require("../middlewares/authMiddleware");
 // @desc    Create a new user (student, teacher, or admin)
 // @access  Private (Admin only)
 router.post(
-  "/api/users",
+  "/users",
   protect,
   restrictTo("admin"),
   adminController.createUser
 );
+
+// @route   GET /api/admin/teachers
+// @desc    Get all teachers
+// @access  Private (Admin only)
 router.get(
-  "/api/teachers",
+  "/teachers",
   protect,
   restrictTo("admin"),
   adminController.getTeachers
 );
 
-router
-  .route("/api/teachers/:id")
-  .put(protect, restrictTo("admin"), adminController.updateTeacher)
-  .delete(protect, restrictTo("admin"), adminController.deleteTeacher);
+// @route   PUT /api/admin/teachers/:id
+// @desc    Update a teacher
+// @access  Private (Admin only)
+// @route   DELETE /api/admin/teachers/:id
+// @desc    Delete a teacher
+// @access  Private (Admin only)
+router.route("/teachers/:id")
+    .put(protect, restrictTo("admin"), adminController.updateTeacher)
+    .delete(protect, restrictTo("admin"), adminController.deleteTeacher);
+
 module.exports = router;

@@ -1,4 +1,4 @@
-const { where } = require("sequelize");
+const { where, Op } = require("sequelize");
 const db = require("../models");
 const User = db.User;
 const Student = db.Student;
@@ -11,101 +11,136 @@ exports.createUser = async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { username, password, role, email, studentId, name } = req.body;
-    const existingUser = await User.findOne({
-      where: {
-        [Op.or]: [{ username: finalUsername }, { email }],
-      },
-      transaction,
-    });
 
-    if (existingUser) {
-      await transaction.rollback();
-      return res.status(400).json({
-        error:
-          existingUser.username === finalUsername
-            ? "Tên đăng nhập đã tồn tại"
-            : "Email đã được sử dụng",
-      });
-    }
-    //xac thuc
+    // --- VALIDATION ---
     if (!username || !password || !role) {
-      await transaction.rollback();
+      // Bỏ transaction.rollback() ở đây vì transaction chưa bắt đầu hoặc không cần thiết
       return res
         .status(400)
-        .json({ error: "Tai khoan, mat khau khong hop le!" });
+        .json({ error: "Tên đăng nhập, mật khẩu và vai trò không được trống!" });
     }
     if (!["student", "teacher", "admin"].includes(role)) {
-      await transaction.rollback();
-      return res.status(400).json({ error: "Role khong hop le!" });
+      // Bỏ transaction.rollback()
+      return res.status(400).json({ error: "Vai trò không hợp lệ!" });
     }
 
-    let finalUsername = username;
+    let finalUsername = username; // Gán username ban đầu
+    let finalStudentId = null; // Khởi tạo studentId
+
     if (role === "student") {
       if (!studentId) {
-        await transaction.rollback();
-        return res.status(400).json({ error: "Tai khoan khong duoc trong" });
+        // Bỏ transaction.rollback()
+        return res.status(400).json({ error: "Mã số sinh viên không được trống khi vai trò là student" });
       }
       if (!name) {
-        await transaction.rollback();
-        return res.status(400).json({ error: "Mat khau khong hop le!" });
+        // Bỏ transaction.rollback()
+        return res.status(400).json({ error: "Họ tên không được trống khi vai trò là student" });
       }
-      finalUsername = studentId;
+      // Kiểm tra định dạng studentId SỚM HƠN
+      if (!/^DH\d{8}$/.test(studentId)) {
+        // Bỏ transaction.rollback()
+        return res.status(400).json({ error: "Mã SV phải có dạng DH + 8 số" });
+      }
+      finalUsername = studentId; // Sử dụng studentId làm username cho sinh viên
+      finalStudentId = studentId; // Lưu studentId để tạo bản ghi Student
     }
-    //hash mat khau
+
+    // --- DUPLICATE CHECK (Sau khi xác định finalUsername) ---
+    const orConditions = [];
+    if (finalUsername) {
+        orConditions.push({ username: finalUsername });
+    }
+    if (email) { // Chỉ kiểm tra email nếu nó được cung cấp
+        orConditions.push({ email: email });
+    }
+
+    if (orConditions.length > 0) {
+        const existingUser = await User.findOne({
+          where: {
+            [Op.or]: orConditions,
+          },
+          // Không cần transaction ở đây vì chỉ là đọc
+        });
+
+        if (existingUser) {
+          let errorMessage = "Thông tin đã tồn tại.";
+          if (existingUser.username === finalUsername) {
+              errorMessage = "Tên đăng nhập đã tồn tại";
+          } else if (email && existingUser.email === email) {
+              errorMessage = "Email đã được sử dụng";
+          }
+          // Bỏ transaction.rollback()
+          return res.status(400).json({ error: errorMessage });
+        }
+    }
+
+
+    // --- PASSWORD HASHING ---
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    //tao user
+    // --- DATABASE OPERATIONS (trong transaction) ---
+    // Tạo user
     const newUser = await User.create(
       {
-        username: finalUsername,
+        username: finalUsername, // Sử dụng finalUsername đã xác định
         password: hashedPassword,
         role,
-        email,
-        studentId: role === "student" ? studentId : null,
+        email: email || null, // Đảm bảo email là null nếu không có
+        studentId: finalStudentId, // Sử dụng finalStudentId đã xác định
       },
       { transaction }
     );
+
+    // Tạo student nếu role là student
     if (role === "student") {
       await Student.create(
         {
           userId: newUser.id,
-          studentId,
+          studentId: finalStudentId, // Đảm bảo dùng đúng studentId
           name,
-          email: email || null,
+          email: email || null, // Đảm bảo email là null nếu không có
         },
         { transaction }
       );
     }
+
+    // --- COMMIT TRANSACTION ---
     await transaction.commit();
-    if (role === "student") {
-      if (!/^DH\d{8}$/.test(studentId)) {
-        // ✅ Kiểm tra định dạng trước
-        await transaction.rollback();
-        return res.status(400).json({ error: "Mã SV phải có dạng DH + 8 số" });
-      }
-    }
+
+    // --- SUCCESS RESPONSE ---
     res.status(201).json({
-      message: "Tao nguoi dung thanh cong",
+      message: "Tạo người dùng thành công",
       user: {
         id: newUser.id,
         username: newUser.username,
         role: newUser.role,
+        email: newUser.email
       },
     });
+
   } catch (error) {
-    await transaction.rollback(); //quay ve neu co loi
+    // Rollback transaction nếu có lỗi trong quá trình create
+    await transaction.rollback();
+
     if (error.name === "SequelizeUniqueConstraintError") {
-      // Xác định cụ thể trường nào bị trùng lặp
       const field = error.errors[0]?.path || "field";
-      return res.status(400).json({ error: `${field} already exists` });
+      // Cải thiện thông báo lỗi
+      let readableField = field;
+      if (field === 'username') readableField = 'Tên đăng nhập';
+      if (field === 'email') readableField = 'Email';
+      if (field === 'studentId' && error.parent?.sqlMessage?.includes('Users_studentId_key')) readableField = 'Mã số sinh viên (trong bảng User)';
+      if (field === 'studentId' && error.parent?.sqlMessage?.includes('Students_pkey')) readableField = 'Mã số sinh viên (trong bảng Student)';
+
+
+      return res.status(400).json({ error: `${readableField} đã tồn tại` });
     }
     if (error.name === "SequelizeValidationError") {
       const messages = error.errors.map((e) => e.message);
       return res.status(400).json({ error: messages.join(", ") });
     }
-    console.error("Create user error:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Create user error:", error); // Giữ lại log lỗi chi tiết ở backend
+    res.status(500).json({ error: "Lỗi máy chủ nội bộ. Không thể tạo người dùng." }); // Thông báo lỗi chung chung hơn cho client
   }
 };
 
