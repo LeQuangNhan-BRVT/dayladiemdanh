@@ -64,7 +64,7 @@ module.exports = (sequelize, DataTypes)=>{
         },
         // createdAt và updatedAt được tự động quản lý bởi timestamps: true
     }, {
-        tableName: 'Users', // Tên bảng trong database (có thể bỏ nếu Sequelize tự suy luận đúng)
+        tableName: 'users', // Tên bảng trong database (có thể bỏ nếu Sequelize tự suy luận đúng)
         timestamps: true // Tự động thêm createdAt và updatedAt
     });
 
