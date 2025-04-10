@@ -137,6 +137,46 @@ exports.checkIn = async (req, res) => {
     // Lấy các giá trị từ QR data
     const { classId, scheduleId, expiresAt } = decodedData;
 
+    // --- Tìm các bản ghi liên quan ---
+    const student = await db.Student.findOne({
+      where: { userId: studentUserId },
+      transaction,
+    });
+    if (!student) {
+      await transaction.rollback();
+      return res
+        .status(404)
+        .json({ error: "Không tìm thấy thông tin sinh viên" });
+    }
+
+    const classInfo = await db.Class.findOne({
+      where: { id: classId },
+      transaction,
+    });
+    if (!classInfo) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Không tìm thấy lớp học" });
+    }
+
+    const isStudentInClass = await db.ClassStudent.findOne({
+      where: { classId: classId, studentId: student.id },
+      transaction,
+    });
+    if (!isStudentInClass) {
+      await transaction.rollback();
+      return res.status(403).json({ error: "Bạn không thuộc lớp này" });
+    }
+
+    const schedule = await db.ClassSchedule.findOne({
+      where: { id: scheduleId, classId: classId },
+      transaction,
+    });
+    if (!schedule) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Không tìm thấy buổi học" });
+    }
+    // --- Kết thúc tìm bản ghi ---
+
     // --- DEBUGGING: Log timestamps before check ---
     // Sửa đoạn code kiểm tra thời hạn QR code
     const currentTime = Date.now();
@@ -184,8 +224,8 @@ exports.checkIn = async (req, res) => {
     const currentTimeInMinutesUTC7 = currentHoursUTC7 * 60 + currentMinutesUTC7;
 
     // Lấy thời gian bắt đầu/kết thúc từ lịch trình (giả định là giờ UTC+7)
-    const startTimeString = classSchedule.attendanceStartTime || classSchedule.startTime;
-    const endTimeString = classSchedule.attendanceEndTime || classSchedule.endTime;
+    const startTimeString = schedule.attendanceStartTime || schedule.startTime;
+    const endTimeString = schedule.attendanceEndTime || schedule.endTime;
 
     // Hàm parse giữ nguyên, vì nó chỉ chuyển đổi HH:MM thành số phút
     const parseTimeToMinutes = (timeStr) => {
@@ -253,46 +293,6 @@ exports.checkIn = async (req, res) => {
         return res.status(400).json({ error: errorMessage });
     }
     // --- Kết thúc kiểm tra thời gian ---
-
-    // --- Tìm các bản ghi liên quan ---
-    const student = await db.Student.findOne({
-      where: { userId: studentUserId },
-      transaction,
-    });
-    if (!student) {
-      await transaction.rollback();
-      return res
-        .status(404)
-        .json({ error: "Không tìm thấy thông tin sinh viên" });
-    }
-
-    const classInfo = await db.Class.findOne({
-      where: { id: classId },
-      transaction,
-    });
-    if (!classInfo) {
-      await transaction.rollback();
-      return res.status(404).json({ error: "Không tìm thấy lớp học" });
-    }
-
-    const isStudentInClass = await db.ClassStudent.findOne({
-      where: { classId: classId, studentId: student.id },
-      transaction,
-    });
-    if (!isStudentInClass) {
-      await transaction.rollback();
-      return res.status(403).json({ error: "Bạn không thuộc lớp này" });
-    }
-
-    const schedule = await db.ClassSchedule.findOne({
-      where: { id: scheduleId, classId: classId },
-      transaction,
-    });
-    if (!schedule) {
-      await transaction.rollback();
-      return res.status(404).json({ error: "Không tìm thấy buổi học" });
-    }
-    // --- Kết thúc tìm bản ghi ---
 
     // Kiểm tra đã điểm danh chưa
     const existingAttendance = await db.Attendance.findOne({
