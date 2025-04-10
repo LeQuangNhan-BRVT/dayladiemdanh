@@ -184,8 +184,8 @@ exports.checkIn = async (req, res) => {
     const currentTimeInMinutesUTC7 = currentHoursUTC7 * 60 + currentMinutesUTC7;
 
     // Lấy thời gian bắt đầu/kết thúc từ lịch trình (giả định là giờ UTC+7)
-    const startTimeString = schedule.attendanceStartTime || schedule.startTime;
-    const endTimeString = schedule.attendanceEndTime || schedule.endTime;
+    const startTimeString = classSchedule.attendanceStartTime || classSchedule.startTime;
+    const endTimeString = classSchedule.attendanceEndTime || classSchedule.endTime;
 
     // Hàm parse giữ nguyên, vì nó chỉ chuyển đổi HH:MM thành số phút
     const parseTimeToMinutes = (timeStr) => {
