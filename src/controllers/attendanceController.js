@@ -137,34 +137,6 @@ exports.checkIn = async (req, res) => {
     // Lấy các giá trị từ QR data
     const { classId, scheduleId, expiresAt } = decodedData;
 
-    // --- DEBUGGING: Log timestamps before check ---
-    // Sửa đoạn code kiểm tra thời hạn QR code
-    const currentTime = Date.now();
-    console.log(
-      `[CheckIn Debug] Current Time (Server): ${currentTime} (${new Date(
-        currentTime
-      ).toISOString()})`
-    );
-    console.log(
-      `[CheckIn Debug] QR Expires At Timestamp: ${expiresAt} (${new Date(
-        expiresAt
-      ).toISOString()})`
-    );
-    const isExpired = currentTime > expiresAt;
-    console.log(
-      `[CheckIn Debug] Is QR Expired? (currentTime > expiresAt): ${isExpired}`
-    );
-
-    // Thêm trước và sau phần return error để xác nhận có vào nhánh điều kiện và phản hồi lỗi hay không
-    if (isExpired) {
-      console.log(`[CheckIn Debug] QR IS EXPIRED! About to return error...`);
-      await transaction.rollback();
-      const result = res.status(400).json({ error: "Mã QR đã hết hạn" });
-      console.log(`[CheckIn Debug] After sending expired error response`);
-      return result;
-    }
-    console.log(`[CheckIn Debug] QR is not expired, continuing...`);
-
     // --- Tìm các bản ghi liên quan ---
     const student = await db.Student.findOne({
       where: { userId: studentUserId },
@@ -205,74 +177,120 @@ exports.checkIn = async (req, res) => {
     }
     // --- Kết thúc tìm bản ghi ---
 
-    // --- Kiểm tra thời gian điểm danh (Logic mới) ---
-    const now = new Date(); // Lấy Date object hiện tại
-    const currentHours = now.getHours(); // Giờ hiện tại (theo timezone server)
-    const currentMinutes = now.getMinutes(); // Phút hiện tại
-    const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+    // --- DEBUGGING: Log timestamps before check ---
+    // Sửa đoạn code kiểm tra thời hạn QR code
+    const currentTime = Date.now();
+    console.log(
+      `[CheckIn Debug] Current Time (Server): ${currentTime} (${new Date(
+        currentTime
+      ).toISOString()})`
+    );
+    console.log(
+      `[CheckIn Debug] QR Expires At Timestamp: ${expiresAt} (${new Date(
+        expiresAt
+      ).toISOString()})`
+    );
+    const isExpired = currentTime > expiresAt;
+    console.log(
+      `[CheckIn Debug] Is QR Expired? (currentTime > expiresAt): ${isExpired}`
+    );
 
+    // Thêm trước và sau phần return error để xác nhận có vào nhánh điều kiện và phản hồi lỗi hay không
+    if (isExpired) {
+      console.log(`[CheckIn Debug] QR IS EXPIRED! About to return error...`);
+      await transaction.rollback();
+      const result = res.status(400).json({ error: "Mã QR đã hết hạn" });
+      console.log(`[CheckIn Debug] After sending expired error response`);
+      return result;
+    }
+    console.log(`[CheckIn Debug] QR is not expired, continuing...`);
+
+    // --- Kiểm tra thời gian điểm danh (Logic mới với UTC+7) ---
+    const now = new Date(); // Lấy Date object hiện tại (thường là UTC)
+
+    // Lấy giờ và phút UTC
+    const utcHours = now.getUTCHours();
+    const utcMinutes = now.getUTCMinutes();
+
+    // Chuyển đổi sang giờ và phút UTC+7
+    let currentHoursUTC7 = utcHours + 7;
+    // Xử lý trường hợp qua ngày mới ở UTC+7
+    if (currentHoursUTC7 >= 24) {
+        currentHoursUTC7 -= 24;
+    }
+    const currentMinutesUTC7 = utcMinutes; // Phút giữ nguyên
+
+    // Tính tổng số phút từ nửa đêm UTC+7
+    const currentTimeInMinutesUTC7 = currentHoursUTC7 * 60 + currentMinutesUTC7;
+
+    // Lấy thời gian bắt đầu/kết thúc từ lịch trình (giả định là giờ UTC+7)
     const startTimeString = schedule.attendanceStartTime || schedule.startTime;
     const endTimeString = schedule.attendanceEndTime || schedule.endTime;
 
+    // Hàm parse giữ nguyên, vì nó chỉ chuyển đổi HH:MM thành số phút
     const parseTimeToMinutes = (timeStr) => {
-      if (!timeStr || !timeStr.includes(":")) return null;
-      const parts = timeStr.split(":");
-      const hours = parseInt(parts[0], 10);
-      const minutes = parseInt(parts[1], 10);
-      if (isNaN(hours) || isNaN(minutes)) return null;
-      return hours * 60 + minutes;
+        if (!timeStr || !timeStr.includes(':')) return null;
+        const parts = timeStr.split(':');
+        const hours = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1], 10);
+        if (isNaN(hours) || isNaN(minutes)) return null;
+        return hours * 60 + minutes;
     };
 
-    const startTimeInMinutes = parseTimeToMinutes(startTimeString);
-    const endTimeInMinutes = parseTimeToMinutes(endTimeString);
+    const startTimeInMinutes = parseTimeToMinutes(startTimeString); // Phút từ nửa đêm UTC+7
+    const endTimeInMinutes = parseTimeToMinutes(endTimeString);   // Phút từ nửa đêm UTC+7
 
     if (startTimeInMinutes === null || endTimeInMinutes === null) {
-      console.error(
-        `Invalid time format for schedule ${scheduleId}: Start=${startTimeString}, End=${endTimeString}`
-      );
-      await transaction.rollback();
-      return res
-        .status(500)
-        .json({ error: "Lỗi cấu hình thời gian buổi học." });
+        console.error(
+            `Invalid time format for schedule ${scheduleId}: Start=${startTimeString}, End=${endTimeString}`
+        );
+        await transaction.rollback();
+        return res
+            .status(500)
+            .json({ error: 'Lỗi cấu hình thời gian buổi học.' });
     }
 
+    // Log với thời gian UTC+7
     console.log(
-      `Check time: Current=${currentTimeInMinutes} (${currentHours}:${currentMinutes}), Start=${startTimeInMinutes} (${startTimeString}), End=${endTimeInMinutes} (${endTimeString})`
+        `Check time (UTC+7): Current=${currentTimeInMinutesUTC7} (${currentHoursUTC7}:${currentMinutesUTC7}), Start=${startTimeInMinutes} (${startTimeString}), End=${endTimeInMinutes} (${endTimeString})`
     );
 
     let isTimeValid = false;
-    // Xử lý trường hợp endTime qua nửa đêm
+    // Xử lý trường hợp endTime qua nửa đêm (logic giữ nguyên)
     if (endTimeInMinutes < startTimeInMinutes) {
-      if (
-        currentTimeInMinutes >= startTimeInMinutes ||
-        currentTimeInMinutes <= endTimeInMinutes
-      ) {
-        isTimeValid = true;
-      }
+        // Nếu qua nửa đêm, hợp lệ nếu giờ hiện tại >= giờ bắt đầu HOẶC <= giờ kết thúc
+        if (
+            currentTimeInMinutesUTC7 >= startTimeInMinutes ||
+            currentTimeInMinutesUTC7 <= endTimeInMinutes
+        ) {
+            isTimeValid = true;
+        }
     } else {
-      // Trường hợp endTime trong cùng ngày
-      if (
-        currentTimeInMinutes >= startTimeInMinutes &&
-        currentTimeInMinutes <= endTimeInMinutes
-      ) {
-        isTimeValid = true;
-      }
+        // Trường hợp endTime trong cùng ngày
+        if (
+            currentTimeInMinutesUTC7 >= startTimeInMinutes &&
+            currentTimeInMinutesUTC7 <= endTimeInMinutes
+        ) {
+            isTimeValid = true;
+        }
     }
 
     if (!isTimeValid) {
-      await transaction.rollback();
-      let errorMessage =
-        currentTimeInMinutes < startTimeInMinutes
-          ? `Chưa đến thời gian điểm danh (Bắt đầu lúc ${startTimeString})`
-          : `Đã hết thời gian điểm danh (Kết thúc lúc ${endTimeString})`;
-      if (
-        endTimeInMinutes < startTimeInMinutes &&
-        currentTimeInMinutes > endTimeInMinutes &&
-        currentTimeInMinutes < startTimeInMinutes
-      ) {
-        errorMessage = `Đã hết thời gian điểm danh (Kết thúc lúc ${endTimeString} ngày hôm sau)`;
-      }
-      return res.status(400).json({ error: errorMessage });
+        await transaction.rollback();
+        // Cập nhật thông báo lỗi để rõ ràng hơn (tùy chọn)
+        let errorMessage =
+            currentTimeInMinutesUTC7 < startTimeInMinutes
+                ? `Chưa đến thời gian điểm danh (Bắt đầu lúc ${startTimeString} giờ UTC+7)`
+                : `Đã hết thời gian điểm danh (Kết thúc lúc ${endTimeString} giờ UTC+7)`;
+        // Xử lý trường hợp qua nửa đêm (logic giữ nguyên)
+        if (
+            endTimeInMinutes < startTimeInMinutes &&
+            currentTimeInMinutesUTC7 > endTimeInMinutes &&
+            currentTimeInMinutesUTC7 < startTimeInMinutes
+        ) {
+            errorMessage = `Đã hết thời gian điểm danh (Kết thúc lúc ${endTimeString} giờ UTC+7)`;
+        }
+        return res.status(400).json({ error: errorMessage });
     }
     // --- Kết thúc kiểm tra thời gian ---
 
