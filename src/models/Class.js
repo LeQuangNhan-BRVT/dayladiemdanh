@@ -25,7 +25,7 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: "Classes",
+      tableName: "classes",
       timestamps: true,
     }
   );
@@ -46,7 +46,7 @@ module.exports = (sequelize, DataTypes) => {
 
     // Một Class có nhiều Student (quan hệ N-N)
     Class.belongsToMany(models.Student, {
-      through: "ClassStudent",
+      through: "classstudent",
       foreignKey: "classId",
       otherKey: "studentId",
       as: "Students",
