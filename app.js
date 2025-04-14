@@ -10,6 +10,7 @@ const attendanceRoute = require("./src/routes/attendanceRoute");
 const classRoute = require("./src/routes/classRoute");
 const studentRoute = require("./src/routes/studentRoutes");
 
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -48,6 +49,7 @@ app.use("/api/admin", adminRoute);
 app.use("/api/attendance", attendanceRoute);
 app.use("/api/classes", classRoute);
 app.use("/api/students", studentRoute);
+
 
 // Middleware xử lý lỗi tập trung (đặt cuối cùng)
 app.use((err, req, res, next) => {

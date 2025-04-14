@@ -1,7 +1,7 @@
 'use strict';
 
-const { sequelize, DataTypes, QueryTypes } = require("sequelize");
-const { validate } = require("uuid");
+const bcrypt = require('bcrypt');
+const { sequelize, DataTypes } = require("sequelize");
 
 module.exports = (sequelize, DataTypes)=>{
     const User = sequelize.define('User', {
@@ -65,7 +65,18 @@ module.exports = (sequelize, DataTypes)=>{
         // createdAt và updatedAt được tự động quản lý bởi timestamps: true
     }, {
         tableName: 'users', // Tên bảng trong database (có thể bỏ nếu Sequelize tự suy luận đúng)
-        timestamps: true // Tự động thêm createdAt và updatedAt
+        timestamps: true, // Tự động thêm createdAt và updatedAt
+        hooks: { 
+            beforeCreate: async (user) => {
+                if (user.password) {
+                    const salt = await bcrypt.genSalt(10);
+                    user.password = await bcrypt.hash(user.password, salt);
+                }
+            },
+            beforeBulkCreate: async (users, options) => {
+                console.log(`[Hook - beforeBulkCreate] Triggered for ${users.length} users. Hashing handled by beforeCreate via individualHooks.`);
+            }
+        }
     });
 
     User.associate = (models) => {
@@ -83,6 +94,11 @@ module.exports = (sequelize, DataTypes)=>{
              as: 'teachingClasses' // Alias để truy cập (vd: teacher.getTeachingClasses())
              // onDelete mặc định là SET NULL hoặc NO ACTION nếu FK cho phép NULL
         });
+    };
+
+    // Thêm phương thức kiểm tra mật khẩu (tùy chọn nhưng hữu ích)
+    User.prototype.validPassword = async function(password) {
+        return await bcrypt.compare(password, this.password);
     };
 
     return User;

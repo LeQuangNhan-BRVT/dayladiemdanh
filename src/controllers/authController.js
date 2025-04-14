@@ -15,7 +15,14 @@ exports.login = async (req, res) => {
         return res.status(401).json({error: 'Tai khoan khong ton tai'});
     }
 
+    console.log(`[Login Attempt] Comparing password for user: ${username}`);
+    console.log(`[Login Attempt] Plain password received: '${password}'`); 
+    console.log(`[Login Attempt] Hashed password from DB: '${user.password}'`); 
+
     const isMatch = await bcrypt.compare(password, user.password);
+    
+    console.log(`[Login Attempt] bcrypt.compare result: ${isMatch}`);
+
     if(!isMatch){
         return res.status(401).json({error: 'Mat khau sai'});
     }
